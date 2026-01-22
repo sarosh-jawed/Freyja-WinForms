@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Freyja.Csv.CsvServices;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -14,6 +15,9 @@ namespace Freyja
         {
             InitializeComponent();
         }
+
+        private readonly CsvLoader _csvLoader = new();
+
         private void Log(string message)
         {
             string line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
@@ -132,21 +136,69 @@ namespace Freyja
                 return;
             }
 
-            Log("======================================");
-            Log("Phase 1 Run Summary");
-            Log("Circulation: " + txtCirculationPath.Text);
-            Log("Users: " + txtUsersPath.Text);
-            Log("Items: " + txtItemsPath.Text);
-            Log("Output Folder: " + txtOutputFolder.Text);
-            Log("Threshold: " + nudThreshold.Value);
+            btnRun.Enabled = false;
+            Cursor = Cursors.WaitCursor;
 
-            var groups = clbPatronGroups.CheckedItems.Cast<string>().ToList();
-            Log("Selected Groups: " + (groups.Count == 0 ? "(none)" : string.Join(", ", groups)));
+            try
+            {
+                Log("Phase 2: Loading CSV files...");
 
-            Log("Timestamp: " + DateTime.Now);
-            Log("Phase 1 complete: inputs validated. CSV processing will be implemented in Phase 2+.");
-            Log("======================================");
+                // 1) Circulation headers + load
+                var circHeaders = _csvLoader.ReadHeaders(txtCirculationPath.Text);
+                var circMissing = CsvHeaderValidator.MissingHeaders(
+                    circHeaders,
+                    "User barcode", "Item barcode", "Circ action", "Date", "Description"
+                );
+                if (circMissing.Count > 0)
+                    throw new InvalidOperationException("Circulation CSV missing headers: " + string.Join(", ", circMissing));
+
+                var circulation = _csvLoader.Load<Freyja.Models.CirculationLogRow, Freyja.Csv.CsvMaps.CirculationLogMap>(txtCirculationPath.Text);
+                Log($"Loaded Circulation rows: {circulation.Count}");
+                Log($"Distinct user barcodes: {circulation.Select(x => x.UserBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+                Log($"Distinct item barcodes: {circulation.Select(x => x.ItemBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+
+                // 2) Users headers + load
+                var userHeaders = _csvLoader.ReadHeaders(txtUsersPath.Text);
+                var userMissing = CsvHeaderValidator.MissingHeaders(
+                    userHeaders,
+                    "groups.group", "users.external_system_id", "users.first_name", "users.last_name"
+                );
+                if (userMissing.Count > 0)
+                    throw new InvalidOperationException("Users CSV missing headers: " + string.Join(", ", userMissing));
+
+                var users = _csvLoader.Load<Freyja.Models.NewUserRow, Freyja.Csv.CsvMaps.NewUserMap>(txtUsersPath.Text);
+                Log($"Loaded Users rows: {users.Count}");
+                Log($"Distinct external_system_id: {users.Select(x => x.ExternalSystemId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+
+                // 3) Items headers + load
+                var itemHeaders = _csvLoader.ReadHeaders(txtItemsPath.Text);
+                var itemMissing = CsvHeaderValidator.MissingHeaders(
+                    itemHeaders,
+                    "Barcode", "Instance (Title, Publisher, Publication date)"
+                );
+                if (itemMissing.Count > 0)
+                    throw new InvalidOperationException("Items CSV missing headers: " + string.Join(", ", itemMissing));
+
+                var items = _csvLoader.Load<Freyja.Models.ItemMatchedRow, Freyja.Csv.CsvMaps.ItemMatchedMap>(txtItemsPath.Text);
+                Log($"Loaded Item rows: {items.Count}");
+                Log($"Distinct item barcodes: {items.Select(x => x.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+
+                Log("Phase 2 complete: CSV ingestion and header validation successful.");
+                Log("Next: Phase 4 will join datasets and build combined records.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Freyja", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Log("Phase 2 failed:");
+                Log(ex.ToString());
+            }
+            finally
+            {
+                Cursor = Cursors.Default;
+                UpdateRunButtonState(); // re-enable Run if inputs still valid
+            }
         }
+
 
         private void btnClear_Click(object sender, EventArgs e)
         {
