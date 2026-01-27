@@ -14,6 +14,16 @@ public sealed class CsvLoader
             IgnoreBlankLines = true,
             TrimOptions = TrimOptions.Trim,
 
+            // This skips rows that are effectively empty (all fields null/whitespace)
+            ShouldSkipRecord = args =>
+            {
+                var record = args.Row?.Parser?.Record;
+                if (record == null) return false;
+
+                // skip if every column is empty/whitespace
+                return record.All(field => string.IsNullOrWhiteSpace(field));
+            },
+
             // Reliability settings: so that we don’t throw on minor format issues
             MissingFieldFound = null,
             HeaderValidated = null,
