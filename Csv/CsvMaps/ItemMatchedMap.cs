@@ -8,6 +8,7 @@ public sealed class ItemMatchedMap : ClassMap<ItemMatchedRow>
     public ItemMatchedMap()
     {
         Map(m => m.Barcode).Name("Barcode");
-        Map(m => m.InstanceSummary).Name("Instance (Title, Publisher, Publication date)");
+        Map(m => m.Instance).Name("Instance (Title, Publisher, Publication date)");
+        Map(m => m.MaterialType).Name("Material type");
     }
 }

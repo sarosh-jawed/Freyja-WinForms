@@ -1,11 +1,5 @@
 ﻿using Freyja.Csv.CsvServices;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Data;
-using System.Drawing;
-using System.Text;
-using System.Windows.Forms;
 
 namespace Freyja
 {
@@ -17,6 +11,7 @@ namespace Freyja
         }
 
         private readonly CsvLoader _csvLoader = new();
+        private Freyja.Models.Normalized.NormalizationResult? _phase3Result;
 
         private void Log(string message)
         {
@@ -183,7 +178,21 @@ namespace Freyja
                 Log($"Loaded Item rows: {items.Count}");
                 Log($"Distinct item barcodes: {items.Select(x => x.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
 
-                Log("Phase 2 complete: CSV ingestion and header validation successful.");
+                // --------------------
+                // Phase 3 starts here
+                // --------------------
+                Log("Phase 3: Starting normalization and field extraction...");
+
+                var normalizer = new Freyja.Csv.CsvServices.NormalizationService(Log);
+
+                // Store for Phase 4 later
+                _phase3Result = normalizer.Normalize(circulation, users, items);
+
+                // Optional: quick summary now
+                var missingItems = _phase3Result.Errors.Count(e => e.Type == Freyja.Models.Normalized.NormalizationErrorType.MissingItem);
+                Log($"Phase 3: Missing items (for ErrorLog later): {missingItems}");
+
+                Log("Phase 3 complete: normalization and field extraction finished.");
                 Log("Next: Phase 4 will join datasets and build combined records.");
             }
             catch (Exception ex)
