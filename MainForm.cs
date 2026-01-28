@@ -12,7 +12,7 @@ namespace Freyja
 
         private readonly CsvLoader _csvLoader = new();
         private Freyja.Models.Normalized.NormalizationResult? _phase3Result;
-
+        private Freyja.Models.Combined.JoinResult? _phase4Result;
         private void Log(string message)
         {
             string line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
@@ -193,12 +193,39 @@ namespace Freyja
                 Log($"Phase 3: Missing items (for ErrorLog later): {missingItems}");
 
                 Log("Phase 3 complete: normalization and field extraction finished.");
-                Log("Next: Phase 4 will join datasets and build combined records.");
+
+                // --------------------
+                // Phase 4 starts here
+                // --------------------
+                Log("Phase 4: Joining normalized datasets...");
+
+                // _phase3Result should never be null here, but keep it safe:
+                if (_phase3Result == null)
+                    throw new InvalidOperationException("Phase 3 result is null. Cannot proceed to Phase 4.");
+
+                var joinService = new JoinService();
+                var joinResult = joinService.BuildCombinedRecords(_phase3Result);
+
+                Log($"Phase 4: Total events input: {joinResult.TotalEventsInput}");
+                Log($"Phase 4: Events joined: {joinResult.EventsJoined}");
+                Log($"Phase 4: Combined records created: {joinResult.Records.Count}");
+                Log($"Phase 4: Missing users: {joinResult.MissingUsers}");
+                Log($"Phase 4: Missing items: {joinResult.MissingItems}");
+                Log($"Phase 4: Join errors collected: {joinResult.Errors.Count}");
+
+                Log("Phase 4 complete: CombinedRecord list built.");
+                Log("Next: Phase 5 will classify Fine_List vs Forgiven_List using (threshold OR selected patron group).");
+
+                // Keep local variables for now (later you can store at class level for Phase 5)
+                var combinedRecords = joinResult.Records;
+                var joinErrors = joinResult.Errors;
+                _phase4Result = joinResult;
+
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "Freyja", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Log("Phase 2 failed:");
+                Log("Run failed:");
                 Log(ex.ToString());
             }
             finally
