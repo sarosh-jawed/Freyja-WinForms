@@ -13,6 +13,8 @@ namespace Freyja
         private readonly CsvLoader _csvLoader = new();
         private Freyja.Models.Normalized.NormalizationResult? _phase3Result;
         private Freyja.Models.Combined.JoinResult? _phase4Result;
+        private Freyja.Models.Classification.ClassificationResult? _phase5Result;
+
         private void Log(string message)
         {
             string line = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {message}";
@@ -57,6 +59,16 @@ namespace Freyja
 
             errorMessage = "";
             return true;
+        }
+
+        private List<string> GetSelectedPatronGroups()
+        {
+            return clbPatronGroups.CheckedItems
+                .Cast<object>()
+                .Select(x => x?.ToString() ?? string.Empty)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
         }
 
         private void MainForm_Load(object sender, EventArgs e)
@@ -136,6 +148,10 @@ namespace Freyja
 
             try
             {
+                _phase3Result = null;
+                _phase4Result = null;
+                _phase5Result = null;
+
                 Log("Phase 2: Loading CSV files...");
 
                 // 1) Circulation headers + load
@@ -221,6 +237,26 @@ namespace Freyja
                 var joinErrors = joinResult.Errors;
                 _phase4Result = joinResult;
 
+                // --------------------
+                // Phase 5 starts here
+                // --------------------
+                Log("Phase 5: Classifying charges into Forgiven vs Fine (Amount <= threshold OR patron group selected)...");
+
+                var threshold = nudThreshold.Value; // decimal
+                var selectedGroups = GetSelectedPatronGroups();
+
+                var classifier = new Freyja.Services.ClassificationService();
+                _phase5Result = classifier.Classify(combinedRecords, threshold, selectedGroups);
+
+                Log($"Phase 5: Threshold used: {threshold:0.00}");
+                Log($"Phase 5: Selected patron groups: {(selectedGroups.Count == 0 ? "(none)" : string.Join(", ", selectedGroups))}");
+                Log($"Phase 5: Combined records processed: {_phase5Result.RecordsProcessed}");
+                Log($"Phase 5: Charges processed: {_phase5Result.ChargesProcessed}");
+                Log($"Phase 5: Forgiven line-items: {_phase5Result.ForgivenLineItems.Count}");
+                Log($"Phase 5: Fine line-items: {_phase5Result.FineLineItems.Count}");
+
+                Log("Phase 5 complete. Next: Phase 6 will generate Forgiven_List.txt, Fine_List.txt, and ErrorLog.");
+
             }
             catch (Exception ex)
             {
@@ -234,7 +270,6 @@ namespace Freyja
                 UpdateRunButtonState(); // re-enable Run if inputs still valid
             }
         }
-
 
         private void btnClear_Click(object sender, EventArgs e)
         {
@@ -250,7 +285,9 @@ namespace Freyja
 
             txtLog.Clear();
             Log("Cleared selections.");
-
+            _phase3Result = null;
+            _phase4Result = null;
+            _phase5Result = null;
             btnRun.Enabled = false;
         }
 
