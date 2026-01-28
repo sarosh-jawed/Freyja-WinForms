@@ -35,9 +35,9 @@ public sealed class ClassificationService
                 chargesProcessed++;
 
                 // OR logic:
-                // - If user is in selected patron group => forgive regardless of amount
+                // - If user is in selected patron group > forgive regardless of amount
                 // - Else forgive only if Amount <= threshold
-                var forgive = isAutoForgiveGroup || ch.Amount <= threshold;
+                var forgive = isAutoForgiveGroup || ch.Amount < threshold;
 
                 var classified = new ClassifiedCharge
                 {

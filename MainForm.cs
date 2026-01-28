@@ -1,4 +1,5 @@
 ﻿using Freyja.Csv.CsvServices;
+using Freyja.Services;
 using System.Data;
 
 namespace Freyja
@@ -240,7 +241,7 @@ namespace Freyja
                 // --------------------
                 // Phase 5 starts here
                 // --------------------
-                Log("Phase 5: Classifying charges into Forgiven vs Fine (Amount <= threshold OR patron group selected)...");
+                Log("Phase 5: Classifying charges into Forgiven vs Fine (Amount < threshold OR patron group selected)...");
 
                 var threshold = nudThreshold.Value; // decimal
                 var selectedGroups = GetSelectedPatronGroups();
@@ -256,6 +257,21 @@ namespace Freyja
                 Log($"Phase 5: Fine line-items: {_phase5Result.FineLineItems.Count}");
 
                 Log("Phase 5 complete. Next: Phase 6 will generate Forgiven_List.txt, Fine_List.txt, and ErrorLog.");
+
+                Log("Phase 6: Generating output files...");
+                // Ensure results exist (should, but keep safe)
+                if (_phase5Result == null) throw new InvalidOperationException("Phase 5 result is null. Cannot proceed to Phase 6.");
+                if (_phase3Result == null) throw new InvalidOperationException("Phase 3 result is null. Cannot proceed to Phase 6.");
+
+                var outputFolderPath = txtOutputFolder.Text;
+
+                var outputService = new OutputGenerationService();
+                var outResult = outputService.Generate(_phase5Result, _phase3Result, outputFolderPath);
+
+                Log($"Phase 6: Wrote Forgiven_List.txt lines: {outResult.ForgivenLinesWritten}");
+                Log($"Phase 6: Wrote Fine_List.txt lines: {outResult.FineLinesWritten}");
+                Log($"Phase 6: Wrote ErrorLog.txt lines: {outResult.ErrorLinesWritten}");
+                Log("Phase 6 complete. Next: Phase 7 will focus on robustness and usability.");
 
             }
             catch (Exception ex)
