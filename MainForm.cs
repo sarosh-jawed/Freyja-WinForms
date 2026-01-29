@@ -121,27 +121,38 @@ namespace Freyja
             if (openFileDialogCsv.ShowDialog() == DialogResult.OK)
             {
                 txtCirculationPath.Text = openFileDialogCsv.FileName;
-                Log("Selected Circulation Log: " + openFileDialogCsv.FileName);
+
+                var fileName = Path.GetFileName(openFileDialogCsv.FileName);
+                Log($"Circulation log selected: {fileName} ({openFileDialogCsv.FileName})");
+
                 UpdateRunButtonState();
             }
         }
+
 
         private void btnBrowseUsers_Click(object sender, EventArgs e)
         {
             if (openFileDialogCsv.ShowDialog() == DialogResult.OK)
             {
                 txtUsersPath.Text = openFileDialogCsv.FileName;
-                Log("Selected New Users CSV: " + openFileDialogCsv.FileName);
+
+                var fileName = Path.GetFileName(openFileDialogCsv.FileName);
+                Log($"Users file selected: {fileName} ({openFileDialogCsv.FileName})");
+
                 UpdateRunButtonState();
             }
         }
+
 
         private void btnBrowseItems_Click(object sender, EventArgs e)
         {
             if (openFileDialogCsv.ShowDialog() == DialogResult.OK)
             {
                 txtItemsPath.Text = openFileDialogCsv.FileName;
-                Log("Selected Item Matched CSV: " + openFileDialogCsv.FileName);
+
+                var fileName = Path.GetFileName(openFileDialogCsv.FileName);
+                Log($"Items file selected: {fileName} ({openFileDialogCsv.FileName})");
+
                 UpdateRunButtonState();
             }
         }
@@ -151,10 +162,13 @@ namespace Freyja
             if (folderBrowserDialogOutput.ShowDialog() == DialogResult.OK)
             {
                 txtOutputFolder.Text = folderBrowserDialogOutput.SelectedPath;
-                Log("Selected Output Folder: " + folderBrowserDialogOutput.SelectedPath);
+
+                Log($"Output folder selected: {folderBrowserDialogOutput.SelectedPath}");
+
                 UpdateRunButtonState();
             }
         }
+
 
         private void clbPatronGroups_ItemCheck(object sender, ItemCheckEventArgs e)
         {
@@ -167,8 +181,11 @@ namespace Freyja
             if (!ValidateInputs(out string error))
             {
                 MessageBox.Show(error, "Freyja", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                Log("Validation failed:");
-                Log(error);
+
+                Log("Cannot start processing. One or more required inputs are missing or invalid.");
+                foreach (var line in error.Split(new[] { Environment.NewLine }, StringSplitOptions.RemoveEmptyEntries))
+                    Log($"• {line}");
+
                 return;
             }
 
@@ -184,6 +201,13 @@ namespace Freyja
             // This touches UI (CheckedListBox), so snapshot here
             var selectedGroups = GetSelectedPatronGroups();
 
+            var selectedGroupsText = selectedGroups.Count == 0
+                ? "None selected"
+                : string.Join(", ", selectedGroups);
+
+            Log("Processing started.");
+            Log($"Forgiveness settings — Threshold: {threshold:0.00}; Auto-forgive groups: {selectedGroupsText}");
+
             SetUiRunning(true);
 
             try
@@ -192,11 +216,14 @@ namespace Freyja
                 {
                     RunPipeline(circPath, usersPath, itemsPath, outputFolder, threshold, selectedGroups);
                 });
+
+                Log("Processing completed successfully.");
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "Freyja", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                Log("Run failed:");
+
+                Log("Processing failed.");
                 Log(ex.ToString());
             }
             finally
@@ -206,10 +233,7 @@ namespace Freyja
             }
         }
 
-        // ---------------------------------------
-        // Move your existing Phase 2–6 code here
-        // IMPORTANT: use parameters only!
-        // ---------------------------------------
+
         private void RunPipeline(
             string circPath,
             string usersPath,
@@ -222,7 +246,7 @@ namespace Freyja
             _phase4Result = null;
             _phase5Result = null;
 
-            Log("Phase 2: Loading CSV files...");
+            Log("Loading input files...");
 
             // 1) Circulation headers + load
             var circHeaders = _csvLoader.ReadHeaders(circPath);
@@ -231,14 +255,15 @@ namespace Freyja
                 "User barcode", "Item barcode", "Circ action", "Date", "Description"
             );
             if (circMissing.Count > 0)
-                throw new InvalidOperationException("Circulation CSV missing headers: " + string.Join(", ", circMissing));
+                throw new InvalidOperationException("Circulation log is missing required columns: " + string.Join(", ", circMissing));
 
             var circulation =
                 _csvLoader.Load<Freyja.Models.CirculationLogRow, Freyja.Csv.CsvMaps.CirculationLogMap>(circPath);
 
-            Log($"Loaded Circulation rows: {circulation.Count}");
-            Log($"Distinct user barcodes: {circulation.Select(x => x.UserBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
-            Log($"Distinct item barcodes: {circulation.Select(x => x.ItemBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+            var circUniqueUsers = circulation.Select(x => x.UserBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count();
+            var circUniqueItems = circulation.Select(x => x.ItemBarcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count();
+
+            Log($"Circulation log loaded: {circulation.Count} rows ({circUniqueUsers} unique users, {circUniqueItems} unique items).");
 
             // 2) Users headers + load
             var userHeaders = _csvLoader.ReadHeaders(usersPath);
@@ -247,13 +272,13 @@ namespace Freyja
                 "groups.group", "users.external_system_id", "users.first_name", "users.last_name"
             );
             if (userMissing.Count > 0)
-                throw new InvalidOperationException("Users CSV missing headers: " + string.Join(", ", userMissing));
+                throw new InvalidOperationException("Users file is missing required columns: " + string.Join(", ", userMissing));
 
             var users =
                 _csvLoader.Load<Freyja.Models.NewUserRow, Freyja.Csv.CsvMaps.NewUserMap>(usersPath);
 
-            Log($"Loaded Users rows: {users.Count}");
-            Log($"Distinct external_system_id: {users.Select(x => x.ExternalSystemId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+            var uniqueUserIds = users.Select(x => x.ExternalSystemId).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count();
+            Log($"Users file loaded: {users.Count} rows ({uniqueUserIds} unique user IDs).");
 
             // 3) Items headers + load
             var itemHeaders = _csvLoader.ReadHeaders(itemsPath);
@@ -262,83 +287,60 @@ namespace Freyja
                 "Barcode", "Instance (Title, Publisher, Publication date)"
             );
             if (itemMissing.Count > 0)
-                throw new InvalidOperationException("Items CSV missing headers: " + string.Join(", ", itemMissing));
+                throw new InvalidOperationException("Items file is missing required columns: " + string.Join(", ", itemMissing));
 
             var items =
                 _csvLoader.Load<Freyja.Models.ItemMatchedRow, Freyja.Csv.CsvMaps.ItemMatchedMap>(itemsPath);
 
-            Log($"Loaded Item rows: {items.Count}");
-            Log($"Distinct item barcodes: {items.Select(x => x.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count()}");
+            var uniqueItemBarcodes = items.Select(x => x.Barcode).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().Count();
+            Log($"Items file loaded: {items.Count} rows ({uniqueItemBarcodes} unique barcodes).");
 
-            // --------------------
-            // Phase 3
-            // --------------------
-            Log("Phase 3: Starting normalization and field extraction...");
+            Log("Validating and preparing records...");
 
             var normalizer = new Freyja.Csv.CsvServices.NormalizationService(Log);
             _phase3Result = normalizer.Normalize(circulation, users, items);
 
-            var missingItems = _phase3Result.Errors.Count(e => e.Type == NormalizationErrorType.MissingItem);
-            Log($"Phase 3: Missing items (for ErrorLog later): {missingItems}");
-            Log("Phase 3 complete: normalization and field extraction finished.");
+            var missingItemsCount = _phase3Result.Errors.Count(e => e.Type == NormalizationErrorType.MissingItem);
+            if (missingItemsCount > 0)
+                Log($"Some records reference items not found in the Items file: {missingItemsCount}. See ErrorLog.txt for details.");
 
-            // --------------------
-            // Phase 4
-            // --------------------
-            Log("Phase 4: Joining normalized datasets...");
+            Log("Matching circulation records to users and items...");
 
             if (_phase3Result == null)
-                throw new InvalidOperationException("Phase 3 result is null. Cannot proceed to Phase 4.");
+                throw new InvalidOperationException("Normalization results are unavailable. Cannot continue.");
 
             var joinService = new JoinService();
             var joinResult = joinService.BuildCombinedRecords(_phase3Result);
 
-            Log($"Phase 4: Total events input: {joinResult.TotalEventsInput}");
-            Log($"Phase 4: Events joined: {joinResult.EventsJoined}");
-            Log($"Phase 4: Combined records created: {joinResult.Records.Count}");
-            Log($"Phase 4: Missing users: {joinResult.MissingUsers}");
-            Log($"Phase 4: Missing items: {joinResult.MissingItems}");
-            Log($"Phase 4: Join errors collected: {joinResult.Errors.Count}");
-
-            Log("Phase 4 complete: CombinedRecord list built.");
-            Log("Next: Phase 5 will classify Fine_List vs Forgiven_List using (threshold OR selected patron group).");
+            Log($"Matching results — Input records: {joinResult.TotalEventsInput}; Matched: {joinResult.EventsJoined}; Grouped records created: {joinResult.Records.Count}.");
+            Log($"Lookup gaps — Missing users: {joinResult.MissingUsers}; Missing items: {joinResult.MissingItems}; Matching issues logged: {joinResult.Errors.Count}.");
 
             var combinedRecords = joinResult.Records;
             _phase4Result = joinResult;
 
-            // --------------------
-            // Phase 5
-            // --------------------
-            Log("Phase 5: Classifying charges into Forgiven vs Fine (Amount < threshold OR patron group selected)...");
+            Log("Applying forgiveness rules...");
+
+            var selectedGroupsText = selectedGroups.Count == 0 ? "None selected" : string.Join(", ", selectedGroups);
 
             var classifier = new Freyja.Services.ClassificationService();
             _phase5Result = classifier.Classify(combinedRecords, threshold, selectedGroups);
 
-            Log($"Phase 5: Threshold used: {threshold:0.00}");
-            Log($"Phase 5: Selected patron groups: {(selectedGroups.Count == 0 ? "(none)" : string.Join(", ", selectedGroups))}");
-            Log($"Phase 5: Combined records processed: {_phase5Result.RecordsProcessed}");
-            Log($"Phase 5: Charges processed: {_phase5Result.ChargesProcessed}");
-            Log($"Phase 5: Forgiven line-items: {_phase5Result.ForgivenLineItems.Count}");
-            Log($"Phase 5: Fine line-items: {_phase5Result.FineLineItems.Count}");
+            Log($"Classification summary — Threshold: {threshold:0.00}; Auto-forgive groups: {selectedGroupsText}.");
+            Log($"Processed — Records: {_phase5Result.RecordsProcessed}; Charges: {_phase5Result.ChargesProcessed}.");
+            Log($"Results — Forgiven line items: {_phase5Result.ForgivenLineItems.Count}; Fine line items: {_phase5Result.FineLineItems.Count}.");
 
-            Log("Phase 5 complete. Next: Phase 6 will generate Forgiven_List.txt, Fine_List.txt, and ErrorLog.");
+            Log("Generating output files...");
 
-            // --------------------
-            // Phase 6
-            // --------------------
-            Log("Phase 6: Generating output files...");
-
-            if (_phase5Result == null) throw new InvalidOperationException("Phase 5 result is null. Cannot proceed to Phase 6.");
-            if (_phase3Result == null) throw new InvalidOperationException("Phase 3 result is null. Cannot proceed to Phase 6.");
+            if (_phase5Result == null) throw new InvalidOperationException("Classification results are unavailable. Cannot continue.");
+            if (_phase3Result == null) throw new InvalidOperationException("Normalization results are unavailable. Cannot continue.");
 
             var outputService = new OutputGenerationService();
             var outResult = outputService.Generate(_phase5Result, _phase3Result, outputFolder);
 
-            Log($"Phase 6: Wrote Forgiven_List.txt lines: {outResult.ForgivenLinesWritten}");
-            Log($"Phase 6: Wrote Fine_List.txt lines: {outResult.FineLinesWritten}");
-            Log($"Phase 6: Wrote ErrorLog.txt lines: {outResult.ErrorLinesWritten}");
-            Log("Phase 6 complete. Next: Phase 7 will focus on robustness and usability.");
+            Log($"Output saved — Forgiven_List.txt: {outResult.ForgivenLinesWritten} line(s); Fine_List.txt: {outResult.FineLinesWritten} line(s); ErrorLog.txt: {outResult.ErrorLinesWritten} line(s).");
+            Log($"Output location: {outputFolder}");
         }
+
 
         private void btnClear_Click(object sender, EventArgs e)
         {
@@ -353,12 +355,15 @@ namespace Freyja
                 clbPatronGroups.SetItemChecked(i, false);
 
             txtLog.Clear();
-            Log("Cleared selections.");
+            Log("Selections cleared.");
+
             _phase3Result = null;
             _phase4Result = null;
             _phase5Result = null;
+
             btnRun.Enabled = false;
         }
+
 
         private void btnExit_Click(object sender, EventArgs e)
         {

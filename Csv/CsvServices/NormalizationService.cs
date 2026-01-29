@@ -18,7 +18,7 @@ public sealed class NormalizationService
         IReadOnlyList<NewUserRow> users,
         IReadOnlyList<ItemMatchedRow> items)
     {
-        _log("Phase 3: Normalizing and extracting fields...");
+        _log("Normalizing input data and extracting fee details...");
 
         var errors = new List<NormalizationError>();
 
@@ -49,7 +49,7 @@ public sealed class NormalizationService
                 DisplayName = display
             };
         }
-        _log($"Phase 3: Users normalized: {usersById.Count}");
+        _log($"Users indexed: {usersById.Count}");
 
         // 2) Build Items lookup
         var itemsByBarcode = new Dictionary<string, NormalizedItem>(StringComparer.OrdinalIgnoreCase);
@@ -74,7 +74,7 @@ public sealed class NormalizationService
                 MaterialType = material
             };
         }
-        _log($"Phase 3: Items normalized: {itemsByBarcode.Count}");
+        _log($"Items indexed: {itemsByBarcode.Count}");
 
         // 3) Normalize circulation events (filter E1, extract type/amount)
         var eventsReady = new List<NormalizedCirculationEvent>();
@@ -91,7 +91,7 @@ public sealed class NormalizationService
                     Type = NormalizationErrorType.InvalidUserBarcode,
                     UserBarcode = r.UserBarcode,
                     ItemBarcode = r.ItemBarcode,
-                    Message = $"Dropped row due to invalid user barcode: '{r.UserBarcode ?? ""}'"
+                    Message = $"Record skipped due to invalid user barcode: '{r.UserBarcode ?? ""}'"
                 });
                 continue;
             }
@@ -108,7 +108,7 @@ public sealed class NormalizationService
                         : NormalizationErrorType.BadDescriptionParse,
                     UserBarcode = userBarcode,
                     ItemBarcode = itemBarcode,
-                    Message = $"Description parse failed: {parseErr}"
+                    Message = $"Fee details could not be read from the description: {parseErr}"
                 });
                 continue;
             }
@@ -129,12 +129,12 @@ public sealed class NormalizationService
                     Type = NormalizationErrorType.MissingUser,
                     UserBarcode = userBarcode,
                     ItemBarcode = itemBarcode,
-                    Message = $"User not found in New Users file for external_system_id '{userBarcode}'."
+                    Message = $"User was not found in the Users file (external_system_id: '{userBarcode}')."
                 });
                 continue;
             }
 
-            // Missing item coverage (this is the one you want logged for ErrorLog)
+            // Missing item coverage
             if (string.IsNullOrWhiteSpace(itemBarcode) || !itemsByBarcode.ContainsKey(itemBarcode))
             {
                 errors.Add(new NormalizationError
@@ -142,7 +142,7 @@ public sealed class NormalizationService
                     Type = NormalizationErrorType.MissingItem,
                     UserBarcode = userBarcode,
                     ItemBarcode = itemBarcode,
-                    Message = $"Item barcode '{itemBarcode}' not found in ItemMatched file."
+                    Message = $"Item barcode '{itemBarcode}' was not found in the Items file."
                 });
                 continue;
             }
@@ -159,11 +159,10 @@ public sealed class NormalizationService
             });
         }
 
-        _log($"Phase 3: Dropped invalid user barcode rows: {removedInvalidUserBarcode}");
-        _log($"Phase 3: Events ready for join: {eventsReady.Count}");
-        _log($"Phase 3: Errors collected: {errors.Count}");
-        _log("Phase 3 complete: Normalization and field extraction successful.");
-        _log("Next: Phase 4 will join datasets and build CombinedRecord list.");
+        _log($"Records skipped (invalid user barcode): {removedInvalidUserBarcode}");
+        _log($"Records ready for matching: {eventsReady.Count}");
+        _log($"Warnings recorded: {errors.Count}");
+        _log("Normalization completed.");
 
         return new NormalizationResult
         {
@@ -173,6 +172,7 @@ public sealed class NormalizationService
             Errors = errors
         };
     }
+
 
     private static bool IsValidUserBarcode(string? userBarcode)
         => !string.IsNullOrWhiteSpace(userBarcode)
