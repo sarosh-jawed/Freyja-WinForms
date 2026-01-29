@@ -87,21 +87,48 @@ public sealed class OutputGenerationService
     // -------------------------
     private static List<string> BuildErrorLines(NormalizationResult phase3Result)
     {
-        // Keep it simple: include MissingItem + InvalidUserBarcode (if you store it in Errors)
-        // At minimum you must include MissingItem.
+        // 1) Pull errors + normalize keys for dedupe + stable output
         var missingItemErrors = phase3Result.Errors
             .Where(e => e.Type == NormalizationErrorType.MissingItem)
-            .OrderBy(e => e.UserBarcode, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(e => e.ItemBarcode, StringComparer.OrdinalIgnoreCase)
+            .Select(e => new
+            {
+                UserKey = Safe(e.UserBarcode, "").Trim(),
+                ItemKey = CleanBarcodeForOutput(e.ItemBarcode),
+                Raw = e
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserKey) || !string.IsNullOrWhiteSpace(x.ItemKey))
+            .GroupBy(x => $"{x.UserKey}|{x.ItemKey}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(x =>
+            {
+                // sort by display name if possible (staff-friendly), otherwise by user key
+                if (phase3Result.UsersByExternalId.TryGetValue(x.UserKey, out var u))
+                    return Safe(u.DisplayName, x.UserKey);
+                return x.UserKey;
+            }, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.UserKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.ItemKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // If you have InvalidUserBarcode captured in Errors, include them too (optional)
         var invalidUserErrors = phase3Result.Errors
             .Where(e => e.Type == NormalizationErrorType.InvalidUserBarcode)
-            .OrderBy(e => e.UserBarcode, StringComparer.OrdinalIgnoreCase)
+            .Select(e => new
+            {
+                UserKey = Safe(e.UserBarcode, "").Trim(),
+                ItemKey = CleanBarcodeForOutput(e.ItemBarcode),
+                Raw = e
+            })
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserKey) || !string.IsNullOrWhiteSpace(x.ItemKey))
+            .GroupBy(x => $"{x.UserKey}|{x.ItemKey}", StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(x => x.UserKey, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(x => x.ItemKey, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // 2) Header
         var lines = new List<string>();
+        lines.Add($"Freyja Error Log — generated {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        lines.Add("");
 
         if (missingItemErrors.Count == 0 && invalidUserErrors.Count == 0)
         {
@@ -109,15 +136,15 @@ public sealed class OutputGenerationService
             return lines;
         }
 
+        // 3) Missing items section
         if (missingItemErrors.Count > 0)
         {
-            lines.Add("Missing Item Barcodes (not found in ItemMatched file):");
-            foreach (var err in missingItemErrors)
+            lines.Add($"Missing Item Barcodes (not found in ItemMatched file): {missingItemErrors.Count}");
+            foreach (var x in missingItemErrors)
             {
-                var userBarcode = Safe(err.UserBarcode, "(Unknown user)");
-                var itemBarcode = Safe(err.ItemBarcode, "(Unknown item)");
+                var userBarcode = string.IsNullOrWhiteSpace(x.UserKey) ? "(Unknown user)" : x.UserKey;
+                var itemBarcode = string.IsNullOrWhiteSpace(x.ItemKey) ? "(Unknown item)" : x.ItemKey;
 
-                // Try to add user details if we have them
                 if (phase3Result.UsersByExternalId.TryGetValue(userBarcode, out var user))
                 {
                     var displayName = Safe(user.DisplayName, "(Unknown name)");
@@ -130,16 +157,18 @@ public sealed class OutputGenerationService
                 }
             }
 
-            lines.Add(""); // spacer line
+            lines.Add("");
         }
 
+        // 4) Invalid users section
         if (invalidUserErrors.Count > 0)
         {
-            lines.Add("Invalid User Barcodes (dropped):");
-            foreach (var err in invalidUserErrors)
+            lines.Add($"Invalid User Barcodes (dropped): {invalidUserErrors.Count}");
+            foreach (var x in invalidUserErrors)
             {
-                var userBarcode = Safe(err.UserBarcode, "(Unknown user)");
-                var itemBarcode = Safe(err.ItemBarcode, "");
+                var userBarcode = string.IsNullOrWhiteSpace(x.UserKey) ? "(Unknown user)" : x.UserKey;
+                var itemBarcode = x.ItemKey;
+
                 if (!string.IsNullOrWhiteSpace(itemBarcode))
                     lines.Add($"• {userBarcode}: dropped (item {itemBarcode}).");
                 else
@@ -147,8 +176,129 @@ public sealed class OutputGenerationService
             }
         }
 
+        // Optional: staff hint if we see barcode formatting problems
+        var sawScientific = phase3Result.Errors.Any(e => (e.ItemBarcode ?? "").IndexOf('E') >= 0 || (e.ItemBarcode ?? "").IndexOf('e') >= 0);
+        var sawDecimalDot = phase3Result.Errors.Any(e => (e.ItemBarcode ?? "").EndsWith(".00", StringComparison.OrdinalIgnoreCase));
+        if (sawScientific || sawDecimalDot)
+        {
+            lines.Add("");
+            lines.Add("Note: Some item barcodes appear formatted as numbers (e.g., .00 or scientific notation).");
+            lines.Add("Best practice: export CSV with barcodes as TEXT to preserve exact values.");
+        }
+
         return lines;
     }
+
+    private static string CleanBarcodeForOutput(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return string.Empty;
+
+        var s = raw.Trim();
+
+        // common artifact: 34241002514248.00
+        if (s.EndsWith(".00", StringComparison.OrdinalIgnoreCase))
+            s = s[..^3];
+
+        // if the remaining is digits, we’re done
+        if (IsDigitsOnly(s))
+            return s;
+
+        // if looks like scientific notation, expand it to digits for readability
+        // NOTE: if the CSV itself has scientific notation, original digits may be unrecoverable.
+        if (LooksLikeScientific(s) && TryExpandScientificToDigits(s, out var expanded))
+            return expanded;
+
+        // last resort: strip a trailing .0 / .00... if it’s purely numeric-ish
+        // (don’t get too aggressive; keep original if unsure)
+        if (TryStripDecimalZeros(s, out var stripped))
+            return stripped;
+
+        return s;
+    }
+
+    private static bool IsDigitsOnly(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+            if (!char.IsDigit(s[i]))
+                return false;
+        return s.Length > 0;
+    }
+
+    private static bool LooksLikeScientific(string s)
+        => s.IndexOf('E') >= 0 || s.IndexOf('e') >= 0;
+
+    private static bool TryStripDecimalZeros(string s, out string result)
+    {
+        result = s;
+
+        // e.g. "34241002514248.0000"
+        var dot = s.IndexOf('.');
+        if (dot < 0) return false;
+
+        var left = s[..dot];
+        var right = s[(dot + 1)..];
+
+        if (!IsDigitsOnly(left)) return false;
+        if (!right.All(ch => ch == '0')) return false;
+
+        result = left;
+        return true;
+    }
+
+    // Expands strings like "3.4241E+13" to "34241000000000"
+    private static bool TryExpandScientificToDigits(string s, out string digits)
+    {
+        digits = string.Empty;
+
+        // Normalize
+        s = s.Trim();
+        var ePos = s.IndexOfAny(new[] { 'E', 'e' });
+        if (ePos < 0) return false;
+
+        var mantissaPart = s[..ePos].Trim();
+        var expPart = s[(ePos + 1)..].Trim();
+
+        if (!int.TryParse(expPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out var exp))
+            return false;
+
+        // Mantissa: allow leading sign (rare)
+        var sign = "";
+        if (mantissaPart.StartsWith("+"))
+            mantissaPart = mantissaPart[1..];
+        else if (mantissaPart.StartsWith("-"))
+        {
+            sign = "-";
+            mantissaPart = mantissaPart[1..];
+        }
+
+        // Split mantissa around '.'
+        var dot = mantissaPart.IndexOf('.');
+        string whole = dot >= 0 ? mantissaPart[..dot] : mantissaPart;
+        string frac = dot >= 0 ? mantissaPart[(dot + 1)..] : "";
+
+        if (!IsDigitsOnly(whole) || (frac.Length > 0 && !IsDigitsOnly(frac)))
+            return false;
+
+        // Remove decimal point by concatenating
+        var allDigits = whole + frac;
+
+        // Decimal shifts right by exp positions relative to decimal point
+        // Original decimal places = frac.Length, so final shift = exp - frac.Length
+        var shift = exp - frac.Length;
+
+        if (shift >= 0)
+        {
+            digits = sign + allDigits + new string('0', shift);
+            // strip any leading '+' or whitespace (sign kept if negative)
+            return true;
+        }
+
+        // shift < 0 would mean decimals remain; for barcodes we don’t want that
+        // We’ll refuse rather than invent digits.
+        return false;
+    }
+
 
     // -------------------------
     // Atomic write (temp -> move)

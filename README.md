@@ -1,105 +1,128 @@
+# Freyja (WinForms)
 
-- TOTAL = sum of charges in that line-item
-- Fee types are de-duplicated and combined
-- One line per user+item per category
+Freyja is a Windows Forms application that supports a fine-forgiveness workflow for library staff. It ingests three CSV inputs, normalizes and joins records into a combined dataset, classifies charges using configurable rules, and generates staff-ready output text files.
+
+## Workflow
+![Freyja workflow](docs/workflow.png)
 
 ---
 
-## Repository Structure (What each file does)
+## Current Status (Phases 1–7 Complete)
+
+✅ **Phase 1**: UI skeleton + predictable UX (validation, logging, tooltips)  
+✅ **Phase 2**: Reliable CSV ingestion (CsvHelper) + required-header validation + sanity stats  
+✅ **Phase 3**: Normalization + field extraction + structured error collection  
+✅ **Phase 4**: Join normalized datasets to build `CombinedRecord` list grouped by `(UserExternalSystemId, ItemBarcode)`  
+✅ **Phase 5**: Classification into **Forgiven vs Fine** using `(Amount < threshold) OR (PatronGroup selected)`  
+✅ **Phase 6**: Output generation:
+- `Forgiven_List.txt`
+- `Fine_List.txt`
+- `ErrorLog.txt`
+
+✅ **Phase 7**: Robustness + usability hardening:
+- Header validation is **trimmed + case-insensitive**
+- CSV reads support Excel-open files via **FileShare.ReadWrite**
+- **Thread-safe Log()** (safe for background tasks)
+- **Async Run** (pipeline runs off UI thread; no UI freeze)
+- UI is gated during runs (Run/Clear/Browse/patron groups/threshold disabled)
+- Optional usability improvements (e.g., Open Output Folder button) and settings persistence (if implemented in your branch)
+- ErrorLog output cleaned (timestamp/counts/stable ordering/no “.00” barcodes)
+
+---
+
+## What “Run” does
+
+When you click **Run**, the pipeline executes:
+
+1. **Phase 1 – Input validation**
+   - Validates required file paths and output folder.
+2. **Phase 2 – Load CSVs**
+   - Reads headers and validates required columns.
+   - Loads each CSV via CsvHelper and logs sanity stats (row counts, distinct keys).
+3. **Phase 3 – Normalize + extract**
+   - Filters invalid user barcodes (expects user barcodes starting with `E1`).
+   - Parses `Description` into `FeeFineType` + `Amount`.
+   - Builds lookup dictionaries:
+     - users keyed by `users.external_system_id`
+     - items keyed by `Barcode`
+   - Collects normalization errors (MissingItem, InvalidUserBarcode, etc.).
+4. **Phase 4 – Join**
+   - Groups by `(UserExternalSystemId, ItemBarcode)`.
+   - Each group contains a list of charges for that user+item.
+5. **Phase 5 – Classify**
+   - **Forgiven** if:
+     - `Amount < threshold`, OR
+     - the user’s `PatronGroup` is in the selected auto-forgive groups
+   - **Fine** otherwise
+   - A single user+item pair can generate:
+     - one forgiven line-item
+     - and one fine line-item (if charges split)
+6. **Phase 6 – Generate outputs**
+   - Writes `Forgiven_List.txt`, `Fine_List.txt`, `ErrorLog.txt`.
+
+> Note: Missing items/users are handled at Phase 3 (errors collected and those events excluded from join).  
+> That’s why Phase 4 typically reports `Missing items/users: 0`.
+
+---
+
+## Output Files
+
+### `Forgiven_List.txt` and `Fine_List.txt`
+One line per user+item per category. Charges are grouped by fee type so duplicates collapse:
+- Example:
+  - `Lost item fee & Lost item processing fee` may appear on one line with a combined total.
+
+### `ErrorLog.txt`
+Includes:
+- Timestamp header
+- Missing Item Barcodes (count + stable ordering)
+- Invalid User Barcodes Dropped (count + stable ordering)
+- Barcodes are formatted for readability (no `.00` artifacts)
+
+---
+
+## Repository Structure
 
 ### `Csv/`
 CSV parsing, header validation, normalization, and join services.
 
 #### `Csv/CsvMaps/` (CsvHelper ClassMaps)
 Maps raw CSV headers into strongly-typed row models.
-- `CirculationLogMap.cs` → `CirculationLogRow`
-- `NewUserMap.cs` → `NewUserRow`
-- `ItemMatchedMap.cs` → `ItemMatchedRow`
+- `CirculationLogMap.cs`
+- `NewUserMap.cs`
+- `ItemMatchedMap.cs`
 
 #### `Csv/CsvServices/` (Core pipeline services)
 - `CsvLoader.cs`
-  - Loads CSV with robust settings (BOM, quotes, trimming, blank lines)
-  - Also reads headers for validation
+  - Loads CSV using CsvHelper with reliability-focused settings.
+  - Uses a shared read stream to avoid Excel “file in use” failures.
 - `CsvHeaderValidator.cs`
-  - Validates required headers
+  - Computes missing required headers (trimmed + case-insensitive).
 - `CirculationDescriptionParser.cs`
-  - Parses Description → Fee/Fine type + Amount
+  - Parses `Description` field (fee/fine type and amount).
 - `NormalizationService.cs` (**Phase 3**)
-  - Builds:
-    - `UsersByExternalId`
-    - `ItemsByBarcode`
-    - `EventsReadyForJoin`
-  - Filters invalid rows
-  - Collects `NormalizationError`s
 - `JoinService.cs` (**Phase 4**)
-  - Builds `CombinedRecord` objects
-  - Adds one `CombinedCharge` per event
-  - Produces `JoinResult`
-
----
 
 ### `Services/`
-Business logic services.
-
 - `ClassificationService.cs` (**Phase 5**)
-  - Applies rule:
-    ```
-    (Amount < threshold) OR (PatronGroup selected)
-    ```
-  - Produces:
-    - `ForgivenLineItems`
-    - `FineLineItems`
-  - Returns `ClassificationResult`
-
+  - Rule: `(Amount < threshold) OR (selected PatronGroup)`
 - `OutputGenerationService.cs` (**Phase 6**)
-  - Writes:
-    - `Forgiven_List.txt`
-    - `Fine_List.txt`
-    - `ErrorLog.txt`
-  - Uses atomic writes (temp → replace)
-  - Returns `OutputGenerationResult`
-
----
+  - Writes the three output files
 
 ### `Models/`
-
-#### Raw input models (Phase 2)
-- `CirculationLogRow.cs`
-- `NewUserRow.cs`
-- `ItemMatchedRow.cs`
-
-#### `Models/Normalized/` (Phase 3 output)
-- `NormalizedUser.cs`
-- `NormalizedItem.cs`
-- `NormalizedCirculationEvent.cs`
-- `NormalizationError.cs`
-- `NormalizationResult.cs`
-
-#### `Models/Combined/` (Phase 4 output)
-- `CombinedCharge.cs`
-- `CombinedRecord.cs`
-- `JoinError.cs`
-- `JoinResult.cs`
-
-#### `Models/Classification/` (Phase 5 output)
-- `ClassifiedCharge.cs`
-- `ClassifiedLineItem.cs`
-- `ClassificationResult.cs`
-
-#### `Models/Output/` (Phase 6 output)
-- `OutputGenerationResult.cs`
-
----
+- Raw input models (Phase 2)
+- `Models/Normalized/` (Phase 3 output)
+- `Models/Combined/` (Phase 4 output)
+- `Models/Classification/` (Phase 5 output)
+- `Models/Output/` (Phase 6 output)
 
 ### `docs/`
-- `workflow.png` — workflow diagram
-
----
+- `workflow.png` – workflow diagram
 
 ### UI / Entry
 - `MainForm.cs`
-  - Orchestrates Phase 2 → Phase 6 pipeline
-  - Handles UI events and logging
+  - Orchestrates Phase 2 → Phase 6
+  - Runs pipeline asynchronously (Phase 7)
 - `Program.cs`
   - App entry point
 
@@ -114,16 +137,11 @@ Business logic services.
    - New Users CSV
    - Item Matched CSV
    - Output folder
-4. Choose:
-   - Threshold
-   - Optional patron groups
-5. Click **Run**:
-   - Pipeline runs Phase 2 → Phase 6
-   - Output files are written to the selected folder
+4. Choose threshold and (optional) patron groups
+5. Click **Run**
+   - Pipeline runs Phase 2 → Phase 6 and logs all stats
 
 ---
 
 ## Notes
-
-- Do not commit real CSV files if they contain PII.
-- Use synthetic or redacted samples only.
+- Do not commit real CSV files if they contain PII. Use synthetic or redacted samples only.
