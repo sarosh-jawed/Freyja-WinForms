@@ -11,7 +11,7 @@
 		<AssemblyName>Freyja</AssemblyName>
 		<RootNamespace>Freyja</RootNamespace>
 		<Product>Freyja</Product>
-
+		<ApplicationTitle>Freyja</ApplicationTitle>
 		<!-- App icon (sets the EXE icon) -->
 		<ApplicationIcon>Assets\Freyja.ico</ApplicationIcon>
 
