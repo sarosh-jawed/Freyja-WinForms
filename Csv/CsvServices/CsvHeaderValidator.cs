@@ -4,7 +4,16 @@ public static class CsvHeaderValidator
 {
     public static List<string> MissingHeaders(string[] actualHeaders, params string[] required)
     {
-        var set = new HashSet<string>(actualHeaders);
-        return required.Where(r => !set.Contains(r)).ToList();
+        var actualSet = new HashSet<string>(
+            actualHeaders
+                .Where(h => !string.IsNullOrWhiteSpace(h))
+                .Select(h => h.Trim()),
+            StringComparer.OrdinalIgnoreCase);
+
+        return required
+            .Where(r => !string.IsNullOrWhiteSpace(r))
+            .Select(r => r.Trim())
+            .Where(r => !actualSet.Contains(r))
+            .ToList();
     }
 }

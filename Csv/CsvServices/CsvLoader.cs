@@ -32,13 +32,20 @@ public sealed class CsvLoader
             BadDataFound = null
         };
 
+    // Phase 7: allow reading CSV even if Excel (or another process) has it open
+    private static StreamReader OpenReadShared(string path)
+    {
+        var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        return new StreamReader(
+            fs,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            detectEncodingFromByteOrderMarks: true);
+    }
+
     public List<T> Load<T, TMap>(string path)
         where TMap : CsvHelper.Configuration.ClassMap<T>
     {
-        using var stream = new StreamReader(
-            path,
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            detectEncodingFromByteOrderMarks: true);
+        using var stream = OpenReadShared(path);
 
         using var csv = new CsvReader(stream, CreateConfig());
         csv.Context.RegisterClassMap<TMap>();
@@ -48,10 +55,7 @@ public sealed class CsvLoader
 
     public string[] ReadHeaders(string path)
     {
-        using var stream = new StreamReader(
-            path,
-            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
-            detectEncodingFromByteOrderMarks: true);
+        using var stream = OpenReadShared(path);
 
         using var csv = new CsvReader(stream, CreateConfig());
 
