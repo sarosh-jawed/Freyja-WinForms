@@ -1,0 +1,25 @@
+User barcode,Item barcode,Object,Circ action,Date,Service point,Source,Description
+E10000004,34000000000011.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000004,34000000000011.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item fee. Fee/Fine owner: WAWL. Amount: 100.00. automated. Additional information to staff: null
+E10000004,34000000000011.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item processing fee. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000004,34000000000008.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000004,34000000000008.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item fee. Fee/Fine owner: WAWL. Amount: 100.00. automated. Additional information to staff: null
+E10000004,34000000000008.00,Fee/Fine,Billed,2/7/2025 14:30,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item processing fee. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000007,34000000000012.00,Fee/Fine,Billed,5/19/2025 14:31,WAWL Information Hub,libref01@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 1.20. automated. Additional information to staff: null
+E10000007,34000000000013.00,Fee/Fine,Billed,5/19/2025 14:31,WAWL Information Hub,libref01@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 1.20. automated. Additional information to staff: null
+E10000005,34000000000009.00,Fee/Fine,Billed,6/2/2025 13:49,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 5.70. automated. Additional information to staff: null
+E10000003,34000000000007.00,Fee/Fine,Billed,1/28/2025 12:39,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000003,34000000000007.00,Fee/Fine,Billed,1/28/2025 12:39,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item processing fee. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+KKU,34000000000004.00,Fee/Fine,Billed,7/23/2025 14:05,WAWL Information Hub,"Velasquez, David",Fee/Fine type: Lost item fee. Fee/Fine owner: WAWL. Amount: 100.00. automated. Additional information to staff: null
+-,34000000000005.00,Fee/Fine,Billed,7/15/2025 13:59,WAWL Information Hub,libref01@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 1.80. automated. Additional information to staff: null
+-,34000000000010.00,Fee/Fine,Billed,7/2/2025 15:10,WAWL Information Hub,"Velasquez, David",Fee/Fine type: Lost item fee. Fee/Fine owner: WAWL. Amount: 100.00. automated. Additional information to staff: null
+E10000006,34000000000002.00,Fee/Fine,Billed,4/6/2025 18:56,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 0.60. automated. Additional information to staff: null
+E10000006,34000000000001.00,Fee/Fine,Billed,4/6/2025 18:56,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 0.60. automated. Additional information to staff: null
+E10000008,34000000000003.00,Fee/Fine,Billed,10/17/2024 16:09,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 9.8. automated. Additional information to staff: null
+E10000008,34000000000003.00,Fee/Fine,Billed,10/17/2024 16:09,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item processing fee. Fee/Fine owner: WAWL. Amount: 10.00. automated. Additional information to staff: null
+E10000008,34000000000003.00,Fee/Fine,Billed,10/17/2024 16:09,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Lost item fee. Fee/Fine owner: WAWL. Amount: 100.00. automated. Additional information to staff: null
+E10000001,34000000000006.00,Fee/Fine,Billed,12/17/2024 15:38,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 10.10. automated. Additional information to staff: null
+E10000002,34900000000001,Fee/Fine,Billed,12/17/2024 15:38,WAWL Information Hub,libcirc@emporia.edu,Fee/Fine type: Overdue fine. Fee/Fine owner: WAWL. Amount: 10.10. automated. Additional information to staff: null
+,,,,,,,
+,,,,,,,
+,,,,,,, 

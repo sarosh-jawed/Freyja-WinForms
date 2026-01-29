@@ -29,6 +29,7 @@
         private void InitializeComponent()
         {
             components = new System.ComponentModel.Container();
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MainForm));
             grpInputs = new GroupBox();
             tlpInputs = new TableLayoutPanel();
             txtCirculationPath = new TextBox();
@@ -388,6 +389,7 @@
             Controls.Add(grpOutput);
             Controls.Add(grpSettings);
             Controls.Add(grpInputs);
+            Icon = (Icon)resources.GetObject("$this.Icon");
             KeyPreview = true;
             Name = "MainForm";
             StartPosition = FormStartPosition.CenterScreen;
