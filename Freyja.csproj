@@ -15,7 +15,6 @@
 		<!-- App icon (sets the EXE icon) -->
 		<ApplicationIcon>Assets\Freyja.ico</ApplicationIcon>
 
-		<!-- Optional but nice for handoff -->
 		<Version>1.0.0</Version>
 		<FileVersion>1.0.0.0</FileVersion>
 		<AssemblyVersion>1.0.0.0</AssemblyVersion>
