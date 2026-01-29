@@ -1,19 +1,33 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <Nullable>enable</Nullable>
-    <UseWindowsForms>true</UseWindowsForms>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>true</UseWindowsForms>
+		<ImplicitUsings>enable</ImplicitUsings>
 
-  <ItemGroup>
-    <PackageReference Include="CsvHelper" Version="33.1.0" />
-  </ItemGroup>
+		<!-- Release identity -->
+		<AssemblyName>Freyja</AssemblyName>
+		<RootNamespace>Freyja</RootNamespace>
+		<Product>Freyja</Product>
 
-  <ItemGroup>
-    <Folder Include="docs\" />
-  </ItemGroup>
+		<!-- App icon (sets the EXE icon) -->
+		<ApplicationIcon>Assets\Freyja.ico</ApplicationIcon>
+
+		<!-- Optional but nice for handoff -->
+		<Version>1.0.0</Version>
+		<FileVersion>1.0.0.0</FileVersion>
+		<AssemblyVersion>1.0.0.0</AssemblyVersion>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="CsvHelper" Version="33.1.0" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Folder Include="docs\" />
+		<Folder Include="Assets\" />
+	</ItemGroup>
 
 </Project>

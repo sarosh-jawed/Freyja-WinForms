@@ -7,7 +7,7 @@ Freyja is a Windows Forms application that supports a fine-forgiveness workflow 
 
 ---
 
-## Current Status (Phases 1–7 Complete)
+## Current Status (Phases 1–8)
 
 ✅ **Phase 1**: UI skeleton + predictable UX (validation, logging, tooltips)  
 ✅ **Phase 2**: Reliable CSV ingestion (CsvHelper) + required-header validation + sanity stats  
@@ -19,14 +19,37 @@ Freyja is a Windows Forms application that supports a fine-forgiveness workflow 
 - `Fine_List.txt`
 - `ErrorLog.txt`
 
-✅ **Phase 7**: Robustness + usability hardening:
+✅ **Phase 7**: Robustness hardening:
 - Header validation is **trimmed + case-insensitive**
 - CSV reads support Excel-open files via **FileShare.ReadWrite**
-- **Thread-safe Log()** (safe for background tasks)
+- **Thread-safe Log()**
 - **Async Run** (pipeline runs off UI thread; no UI freeze)
-- UI is gated during runs (Run/Clear/Browse/patron groups/threshold disabled)
-- Optional usability improvements (e.g., Open Output Folder button) and settings persistence (if implemented in your branch)
-- ErrorLog output cleaned (timestamp/counts/stable ordering/no “.00” barcodes)
+- UI is gated during runs
+
+✅ **Phase 8**: Packaging + handoff:
+- **Self-contained** release build (single `Freyja.exe`)
+- README quickstart
+- Redacted **sample-data/** for verification
+
+---
+
+## Quick Start (Release EXE)
+
+1. Download the release zip and extract it.
+2. Run `Freyja.exe` (Windows 10/11 x64).
+   - If SmartScreen appears: **More info → Run anyway**.
+3. Click **Browse…** and select the three CSV files.
+   - For a quick verification, use the included `sample-data/` folder:
+     - `sample-data/CirculationLog_sample.csv`
+     - `sample-data/New Users_sample.csv`
+     - `sample-data/ItemMatchedFiles_sample.csv`
+4. Choose an **Output folder**.
+5. Set the threshold (default 10.00) and optionally select patron groups.
+6. Click **Run**.
+7. Confirm outputs in the chosen output folder:
+   - `Forgiven_List.txt`
+   - `Fine_List.txt`
+   - `ErrorLog.txt`
 
 ---
 
@@ -77,71 +100,42 @@ Includes:
 - Timestamp header
 - Missing Item Barcodes (count + stable ordering)
 - Invalid User Barcodes Dropped (count + stable ordering)
-- Barcodes are formatted for readability (no `.00` artifacts)
 
 ---
 
-## Repository Structure
+## Sample Data
 
-### `Csv/`
-CSV parsing, header validation, normalization, and join services.
+The `sample-data/` folder contains a small synthetic/redacted dataset designed to exercise:
+- threshold boundary behavior (10.00 routes to Fine_List)
+- patron group auto-forgive
+- invalid user barcode drops
+- missing item barcode error logging
 
-#### `Csv/CsvMaps/` (CsvHelper ClassMaps)
-Maps raw CSV headers into strongly-typed row models.
-- `CirculationLogMap.cs`
-- `NewUserMap.cs`
-- `ItemMatchedMap.cs`
-
-#### `Csv/CsvServices/` (Core pipeline services)
-- `CsvLoader.cs`
-  - Loads CSV using CsvHelper with reliability-focused settings.
-  - Uses a shared read stream to avoid Excel “file in use” failures.
-- `CsvHeaderValidator.cs`
-  - Computes missing required headers (trimmed + case-insensitive).
-- `CirculationDescriptionParser.cs`
-  - Parses `Description` field (fee/fine type and amount).
-- `NormalizationService.cs` (**Phase 3**)
-- `JoinService.cs` (**Phase 4**)
-
-### `Services/`
-- `ClassificationService.cs` (**Phase 5**)
-  - Rule: `(Amount < threshold) OR (selected PatronGroup)`
-- `OutputGenerationService.cs` (**Phase 6**)
-  - Writes the three output files
-
-### `Models/`
-- Raw input models (Phase 2)
-- `Models/Normalized/` (Phase 3 output)
-- `Models/Combined/` (Phase 4 output)
-- `Models/Classification/` (Phase 5 output)
-- `Models/Output/` (Phase 6 output)
-
-### `docs/`
-- `workflow.png` – workflow diagram
-
-### UI / Entry
-- `MainForm.cs`
-  - Orchestrates Phase 2 → Phase 6
-  - Runs pipeline asynchronously (Phase 7)
-- `Program.cs`
-  - App entry point
+Do not commit real CSV files if they contain PII. Use synthetic or redacted samples only.
 
 ---
 
-## How to Run
+## Build from Source
 
-1. Open solution in Visual Studio
-2. Build and run
-3. Select:
-   - Circulation Log CSV
-   - New Users CSV
-   - Item Matched CSV
-   - Output folder
-4. Choose threshold and (optional) patron groups
-5. Click **Run**
-   - Pipeline runs Phase 2 → Phase 6 and logs all stats
+Prereqs:
+- Visual Studio (with Windows Desktop development)
+- .NET SDK matching `TargetFramework` in `.csproj` (net10.0-windows)
+
+Steps:
+1. Open the solution in Visual Studio
+2. Restore NuGet packages
+3. Build and run
 
 ---
 
-## Notes
-- Do not commit real CSV files if they contain PII. Use synthetic or redacted samples only.
+## Publish (Self-contained Single EXE)
+
+CLI:
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained true `
+  /p:PublishSingleFile=true `
+  /p:IncludeNativeLibrariesForSelfExtract=true `
+  /p:EnableCompressionInSingleFile=true `
+  /p:DebugType=None `
+  /p:DebugSymbols=false `
+  -o .\artifacts\publish\Freyja-win-x64
